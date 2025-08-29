@@ -1,14 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Import Subscribers</title>
-</head>
-<body>
-    <h1>Import Subscribers</h1>
-    <form method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".csv, .xlsx">
-        <input type="submit" value="Upload">
-    </form>
-</body>
-</html>
+{% extends 'base.html' %}
+
+{% block title %}Import Subscribers{% endblock %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h1 class="h3">Import Subscribers</h1>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Upload a <code>.csv</code> or <code>.xlsx</code> file with columns for 'name' and 'whatsapp_number'. An optional 'state' column can also be included.</p>
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Select file</label>
+                            <input class="form-control" type="file" id="file" name="file" accept=".csv, .xlsx" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Upload and Import</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
