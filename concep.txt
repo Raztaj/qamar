@@ -1,0 +1,66 @@
+1. Introduction & Vision
+This document outlines the concept for "Manzam," a bespoke, locally-hosted web application designed to manage and automate WhatsApp marketing campaigns for the Al-Qamar Boba brand.
+The vision is to transform Al-Qamar Boba's customer communication from scattered, manual broadcasts into a strategic, personalized, and consent-based engagement system. "Manzam" will serve as the central nervous system for customer data, enabling efficient campaign creation, intelligent targeting, and performance tracking, all while respecting customer privacy and building brand loyalty.
+________________________________________
+2. Logical Architecture & System Components
+"Manzam" is designed as a monolithic web application with a clear separation between its core logical components, ensuring maintainability and future scalability.
+1.	Core CRM Engine (The Heart):
+o	Subscriber Management: Manages all customer contact information, including names, WhatsApp numbers, states, and subscription status.
+o	Tagging System: A flexible system to categorize subscribers based on purchase history, interests, location, and engagement level (e.g., bought_gel, khartoum, high_value_customer).
+o	Data Importer: A utility to parse and import subscriber data from structured Excel files (.xlsx, .csv), intelligently handling duplicates.
+2.	Campaign Management Engine:
+o	Campaign Builder: An interface for creating campaigns, defining the target audience through a tag-based filtering logic, and crafting personalized message templates using variables (e.g., {الاسم}).
+o	Anti-Spam Shield: A core logic component that checks the campaign log before sending to prevent a subscriber from receiving the same campaign message multiple times.
+o	Campaign Scheduler (Future Scope): Logic to schedule campaigns for future delivery.
+3.	WhatsApp Sending Engine (The Messenger):
+o	Task Queue: A simple queue to hold the list of messages (recipient number, personalized message) ready to be sent for a given campaign.
+o	Browser Automation Script (Python - Selenium/Playwright): A background script that interacts with WhatsApp Web. It fetches tasks from the queue, simulates human behavior to send messages, and introduces delays to mitigate the risk of being blocked.
+o	Logging & Feedback Loop: After each send attempt, this component logs the result (Success/Fail) back into the system's database.
+4.	User Interface (The Face):
+o	A clean, intuitive web interface composed of four main sections:
+1.	Dashboard: High-level overview of KPIs.
+2.	Contact Management: View, add, edit, delete, and import subscribers.
+3.	Campaign Builder: Create and launch new campaigns.
+4.	Campaign Log/Archive: View history of all sent campaigns.
+________________________________________
+3. Proposed Technical Stack
+The technology stack is chosen for its simplicity, rapid development capabilities, and cost-effectiveness (primarily open-source).
+•	Backend Framework: Python 3.x with Flask.
+o	Reasoning: Lightweight, easy to learn, and has a rich ecosystem of libraries. Perfect for building a custom web application and handling backend logic.
+•	Database: SQLite (for initial development) / PostgreSQL (for production).
+o	Reasoning: SQLite is file-based and requires no setup, ideal for prototyping. PostgreSQL is robust, scalable, and the standard for professional Python applications.
+•	Frontend: HTML5, CSS3, JavaScript.
+o	Reasoning: Standard web technologies. A simple CSS framework like Bootstrap or Tailwind CSS can be used for responsive design without complex JavaScript frameworks.
+•	Data Processing: Pandas library (in Python).
+o	Reasoning: The industry standard for reading, cleaning, and processing data from Excel and CSV files efficiently.
+•	Browser Automation: Selenium or Playwright library (in Python).
+o	Reasoning: Powerful tools for controlling a web browser programmatically, which is essential for interacting with WhatsApp Web.
+•	Deployment: Locally hosted on a dedicated machine or a cloud provider like Heroku or DigitalOcean.
+________________________________________
+4. Functional Requirements
+Functional requirements describe what the system must do.
+ID	Module	Requirement Description
+F1	Subscriber Mgmt	The system must allow an admin to import a list of subscribers from an Excel or CSV file.
+F2	Subscriber Mgmt	The system must allow an admin to manually add, edit, and delete a subscriber's record.
+F3	Subscriber Mgmt	The system must allow an admin to assign one or more text-based tags to each subscriber.
+F4	Subscriber Mgmt	Each subscriber must have a status (Active, Unsubscribed). New subscribers are Active by default.
+F5	Campaign Mgmt	The system must provide an interface to create a new campaign with a unique name.
+F6	Campaign Mgmt	The system must allow an admin to define a target audience for a campaign by selecting one or more tags.
+F7	Campaign Mgmt	The system must display a real-time count of matching subscribers as the target audience is defined.
+F8	Campaign Mgmt	The system must provide a text editor to compose a campaign message, supporting variables like {الاسم}.
+F9	Sending Engine	The system must be able to launch a campaign, triggering the WhatsApp sending script.
+F10	Sending Engine	The sending script must personalize each message by replacing variables with subscriber data.
+F11	Logging	The system must log every message sent, recording the campaign name, recipient, and status (Sent/Failed).
+F12	Anti-Spam	The system must automatically prevent sending the same campaign twice to the same subscriber.
+________________________________________
+5. Non-Functional Requirements
+Non-functional requirements describe how the system should perform.
+ID	Category	Requirement Description
+NF1	Usability	The user interface must be intuitive and simple, requiring minimal training. The primary language of the interface will be Arabic.
+NF2	Performance	The system should import a file of 1,000 contacts in under 30 seconds. Audience preview should update in less than 3 seconds.
+NF3	Reliability	The sending script must be resilient to minor interruptions. If it fails, it should log the failure and be able to resume from where it left off.
+NF4	Security	The application must be password-protected to ensure only authorized users (admins) can access customer data and campaign functions.
+NF5	Maintainability	The code must be well-documented and structured logically (e.g., separating backend, frontend, and sending scripts) to facilitate future updates.
+NF6	Scalability	The system should be able to manage a database of at least 10,000 subscribers without significant performance degradation.
+NF7	Compliance	The system must facilitate a consent-based model. All outgoing messages should include instructions for unsubscribing. (While the tech is unofficial, the process should respect consent).
+
