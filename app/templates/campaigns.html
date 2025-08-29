@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Campaigns</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { border: 1px solid #dddddd; text-align: left; padding: 8px; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .container { display: flex; gap: 2em; }
+        .form-container { flex: 1; }
+        .list-container { flex: 2; }
+        form { display: flex; flex-direction: column; gap: 0.5em; }
+        textarea { height: 100px; }
+        .flash { padding: 1em; margin-bottom: 1em; border: 1px solid; }
+        .flash.success { background-color: #d4edda; color: #155724; }
+        .flash.error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Campaign Management</h1>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="form-container">
+            <h2>Create New Campaign</h2>
+            <form method="POST">
+                <label for="name">Campaign Name:</label>
+                <input type="text" id="name" name="name" required>
+
+                <label for="message">Message:</label>
+                <textarea id="message" name="message" required></textarea>
+                <p>You can use {الاسم} as a placeholder for the subscriber's name.</p>
+
+                <input type="submit" value="Create Campaign">
+            </form>
+        </div>
+
+        <div class="list-container">
+            <h2>Existing Campaigns</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for campaign in campaigns %}
+                    <tr>
+                        <td>{{ campaign.id }}</td>
+                        <td>{{ campaign.name }}</td>
+                        <td>{{ campaign.status }}</td>
+                        <td>{{ campaign.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            {% if campaign.status == 'Draft' %}
+                            <form action="{{ url_for('launch_campaign', campaign_id=campaign.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to launch this campaign?');">
+                                <input type="submit" value="Launch">
+                            </form>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <hr>
+    <a href="{{ url_for('subscribers') }}">View Subscribers</a> |
+    <a href="{{ url_for('import_subscribers') }}">Import Subscribers</a>
+</body>
+</html>

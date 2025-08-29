@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Stop Words</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { border: 1px solid #dddddd; text-align: left; padding: 8px; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .container { display: flex; gap: 2em; }
+        .form-container { flex: 1; }
+        .list-container { flex: 2; }
+        .flash { padding: 1em; margin-bottom: 1em; border: 1px solid; }
+        .flash.success { background-color: #d4edda; color: #155724; }
+        .flash.error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Manage Stop Words</h1>
+    <p>These words will be used to check the last message from a subscriber. If a match is found, the campaign message will not be sent to them.</p>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="form-container">
+            <h2>Add New Stop Word</h2>
+            <form action="{{ url_for('stopwords') }}" method="POST">
+                <label for="word">Word or Phrase:</label>
+                <input type="text" id="word" name="word" required>
+                <input type="submit" value="Add Word">
+            </form>
+        </div>
+
+        <div class="list-container">
+            <h2>Current Stop Words</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Word</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stop_word in stop_words %}
+                    <tr>
+                        <td>{{ stop_word.word }}</td>
+                        <td>
+                            <form action="{{ url_for('delete_stop_word', word_id=stop_word.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this word?');">
+                                <input type="submit" value="Delete">
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <hr>
+    <a href="{{ url_for('campaigns') }}">Back to Campaigns</a>
+</body>
+</html>
