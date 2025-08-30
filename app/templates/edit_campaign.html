@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Campaign{% endblock %}
+
+{% block content %}
+    <h1 class="h2">Edit Campaign</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('edit_campaign', campaign_id=campaign.id) }}">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Campaign Name</label>
+                    <input type="text" class="form-control" id="name" name="name" value="{{ campaign.name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="message" class="form-label">Message</label>
+                    <textarea class="form-control" id="message" name="message" rows="5" required>{{ campaign.message }}</textarea>
+                    <div class="form-text">You can use {الاسم} as a placeholder for the subscriber's name.</div>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{{ url_for('campaigns') }}" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+{% endblock %}

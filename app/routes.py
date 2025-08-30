@@ -55,6 +55,22 @@ def campaigns():
     all_campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
     return render_template('campaigns.html', campaigns=all_campaigns)
 
+@app.route('/campaign/edit/<int:campaign_id>', methods=['GET', 'POST'])
+def edit_campaign(campaign_id):
+    campaign = Campaign.query.get_or_404(campaign_id)
+    if campaign.status != 'Draft':
+        flash('Only draft campaigns can be edited.', 'error')
+        return redirect(url_for('campaigns'))
+
+    if request.method == 'POST':
+        campaign.name = request.form['name']
+        campaign.message = request.form['message']
+        db.session.commit()
+        flash('Campaign updated successfully!', 'success')
+        return redirect(url_for('campaigns'))
+
+    return render_template('edit_campaign.html', campaign=campaign)
+
 @app.route('/import', methods=['GET', 'POST'])
 def import_subscribers():
     if request.method == 'POST':
