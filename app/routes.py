@@ -17,6 +17,19 @@ def subscribers():
     all_subscribers = Subscriber.query.all()
     return render_template('subscribers.html', subscribers=all_subscribers)
 
+@app.route('/subscriber/edit/<int:subscriber_id>', methods=['GET', 'POST'])
+def edit_subscriber(subscriber_id):
+    subscriber = Subscriber.query.get_or_404(subscriber_id)
+    if request.method == 'POST':
+        subscriber.name = request.form['name']
+        subscriber.whatsapp_number = request.form['whatsapp_number']
+        subscriber.state = request.form['state']
+        subscriber.status = request.form['status']
+        db.session.commit()
+        flash('Subscriber updated successfully!', 'success')
+        return redirect(url_for('subscribers'))
+    return render_template('edit_subscriber.html', subscriber=subscriber)
+
 @app.route('/campaigns', methods=['GET', 'POST'])
 def campaigns():
     if request.method == 'POST':

@@ -18,6 +18,7 @@
                         <th>WhatsApp Number</th>
                         <th>State</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -31,6 +32,9 @@
                             <span class="badge {% if subscriber.status == 'Active' %}bg-success{% else %}bg-danger{% endif %}">
                                 {{ subscriber.status }}
                             </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('edit_subscriber', subscriber_id=subscriber.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
                         </td>
                     </tr>
                     {% else %}
