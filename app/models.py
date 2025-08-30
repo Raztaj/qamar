@@ -3,6 +3,12 @@ from app import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# Association table for the many-to-many relationship between Subscriber and Tag
+subscriber_tags = db.Table('subscriber_tags',
+    db.Column('subscriber_id', db.Integer, db.ForeignKey('subscriber.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+)
+
 class Subscriber(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -10,6 +16,8 @@ class Subscriber(db.Model):
     state = db.Column(db.String(50), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='Active') # e.g., Active, Unsubscribed
     logs = db.relationship('CampaignLog', backref='subscriber', lazy=True)
+    tags = db.relationship('Tag', secondary=subscriber_tags, lazy='subquery',
+                           backref=db.backref('subscribers', lazy=True))
 
     def __repr__(self):
         return f"Subscriber('{self.name}', '{self.whatsapp_number}')"
@@ -34,6 +42,13 @@ class CampaignLog(db.Model):
 
     def __repr__(self):
         return f"CampaignLog('Campaign {self.campaign_id}', 'Subscriber {self.subscriber_id}', '{self.status}')"
+
+class Tag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+    def __repr__(self):
+        return f"Tag('{self.name}')"
 
 class StopWord(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}New Custom Campaign{% endblock %}
+
+{% block content %}
+    <h1 class="h2 mb-4">Create Custom Campaign</h1>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    Campaign Details
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('launch_custom_campaign') }}" method="POST">
+
+                        <input type="hidden" name="subscriber_ids" value="{{ subscribers|map(attribute='id')|join(',') }}">
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Campaign Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Message</label>
+                            <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+                            <div class="form-text">
+                                You can use `{الاسم}` as a placeholder for the subscriber's name.
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success">Launch Campaign</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    Selected Subscribers ({{ subscribers|length }})
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for subscriber in subscribers %}
+                        <li class="list-group-item">{{ subscriber.name }} - {{ subscriber.whatsapp_number }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+{% endblock %}

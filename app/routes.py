@@ -1,11 +1,11 @@
 import os
 import pandas as pd
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import current_user, login_user, logout_user, login_required
 import time
 import random
 from app import app, db
-from app.models import Subscriber, Campaign, CampaignLog, StopWord, User
+from app.models import Subscriber, Campaign, CampaignLog, StopWord, User, Tag
 from app.forms import LoginForm
 from sender import WhatsAppSender
 
@@ -34,6 +34,17 @@ def subscribers():
     all_subscribers = Subscriber.query.all()
     return render_template('subscribers.html', subscribers=all_subscribers)
 
+def _process_and_set_tags(subscriber, tags_string):
+    """Helper function to process a comma-separated string of tags and associate them with a subscriber."""
+    subscriber.tags.clear()
+    tag_names = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+    for tag_name in tag_names:
+        tag = Tag.query.filter_by(name=tag_name).first()
+        if not tag:
+            tag = Tag(name=tag_name)
+            db.session.add(tag)
+        subscriber.tags.append(tag)
+
 @app.route('/subscriber/edit/<int:subscriber_id>', methods=['GET', 'POST'])
 @login_required
 def edit_subscriber(subscriber_id):
@@ -43,6 +54,10 @@ def edit_subscriber(subscriber_id):
         subscriber.whatsapp_number = request.form['whatsapp_number']
         subscriber.state = request.form['state']
         subscriber.status = request.form['status']
+
+        tags_string = request.form.get('tags', '')
+        _process_and_set_tags(subscriber, tags_string)
+
         db.session.commit()
         flash('Subscriber updated successfully!', 'success')
         return redirect(url_for('subscribers'))
@@ -57,40 +72,208 @@ def delete_subscriber(subscriber_id):
     flash('Subscriber deleted successfully!', 'success')
     return redirect(url_for('subscribers'))
 
-@app.route('/campaigns', methods=['GET', 'POST'])
+@app.route('/subscriber/delete_all', methods=['POST'])
+@login_required
+def delete_all_subscribers():
+    try:
+        num_rows_deleted = db.session.query(Subscriber).delete()
+        db.session.commit()
+        flash(f'{num_rows_deleted} subscribers have been deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred: {e}', 'error')
+    return redirect(url_for('subscribers'))
+
+@app.route('/campaigns')
 @login_required
 def campaigns():
-    if request.method == 'POST':
-        name = request.form['name']
-        message = request.form['message']
-        if name and message:
-            new_campaign = Campaign(name=name, message=message)
-            db.session.add(new_campaign)
-            db.session.commit()
-            flash('Campaign created successfully!', 'success')
-            return redirect(url_for('campaigns'))
-        else:
-            flash('Name and message are required.', 'error')
-
     all_campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
-    return render_template('campaigns.html', campaigns=all_campaigns)
+    all_tags = Tag.query.order_by(Tag.name).all()
+    return render_template('campaigns.html', campaigns=all_campaigns, tags=all_tags)
 
-@app.route('/campaign/edit/<int:campaign_id>', methods=['GET', 'POST'])
+@app.route('/campaign/audience_count', methods=['POST'])
 @login_required
-def edit_campaign(campaign_id):
-    campaign = Campaign.query.get_or_404(campaign_id)
-    if campaign.status != 'Draft':
-        flash('Only draft campaigns can be edited.', 'error')
+def audience_count():
+    tag_ids = request.json.get('tag_ids', [])
+    if not tag_ids:
+        return jsonify({'count': 0})
+
+    # Query for subscribers that have ALL of the selected tags.
+    subscribers_query = Subscriber.query
+    for tag_id in tag_ids:
+        subscribers_query = subscribers_query.filter(Subscriber.tags.any(id=tag_id))
+
+    # We only want active subscribers for the count
+    count = subscribers_query.filter_by(status='Active').count()
+
+    return jsonify({'count': count})
+
+@app.route('/campaign/new_custom', methods=['POST'])
+@login_required
+def new_custom_campaign():
+    subscriber_ids = request.form.getlist('subscriber_ids')
+    if not subscriber_ids:
+        flash('Please select at least one subscriber.', 'error')
+        return redirect(url_for('subscribers'))
+
+    subscribers = Subscriber.query.filter(Subscriber.id.in_(subscriber_ids)).all()
+    return render_template('custom_campaign.html', subscribers=subscribers)
+
+@app.route('/campaign/launch_by_tags', methods=['POST'])
+@login_required
+def launch_by_tags():
+    name = request.form.get('name')
+    message = request.form.get('message')
+    tag_ids = request.form.getlist('tag_ids')
+
+    if not all([name, message, tag_ids]):
+        flash('Campaign name, message, and at least one tag are required.', 'error')
         return redirect(url_for('campaigns'))
 
-    if request.method == 'POST':
-        campaign.name = request.form['name']
-        campaign.message = request.form['message']
+    # Find active subscribers that have ALL of the selected tags.
+    subscribers_to_send_query = Subscriber.query.filter_by(status='Active')
+    for tag_id in tag_ids:
+        subscribers_to_send_query = subscribers_to_send_query.filter(Subscriber.tags.any(id=tag_id))
+
+    subscribers_to_send = subscribers_to_send_query.all()
+
+    if not subscribers_to_send:
+        flash('No active subscribers match the selected tags.', 'error')
+        return redirect(url_for('campaigns'))
+
+    # Create and save the new campaign
+    new_campaign = Campaign(name=name, message=message, status='Sending')
+    db.session.add(new_campaign)
+    db.session.commit()
+    flash(f'Campaign "{new_campaign.name}" is now sending to {len(subscribers_to_send)} subscribers... Please do not close this window.', 'success')
+
+    # --- Re-usable Sending Logic ---
+    stop_words_db = StopWord.query.all()
+    stop_words_list = {sw.word.lower() for sw in stop_words_db}
+
+    total_sent = 0
+    total_failed = 0
+    total_skipped = 0
+
+    try:
+        with WhatsAppSender(headless=False) as sender:
+            for sub in subscribers_to_send:
+                log_status = ""
+                # --- Stop Word Check ---
+                last_message = sender.read_last_message(sub.whatsapp_number)
+                if last_message and last_message.lower() in stop_words_list:
+                    print(f"Skipping {sub.name} because a stop word was found.")
+                    log_status = "Skipped (Stop Word)"
+                    total_skipped += 1
+                else:
+                    # --- Send Message ---
+                    personalized_message = new_campaign.message.replace('{الاسم}', sub.name)
+                    status = sender.send_message(sub.whatsapp_number, personalized_message)
+
+                    if "Success" in status:
+                        log_status = 'Success'
+                        total_sent += 1
+                    else:
+                        log_status = f'Fail: {status}'
+                        total_failed += 1
+
+                # --- Create Log ---
+                log = CampaignLog(campaign_id=new_campaign.id, subscriber_id=sub.id, status=log_status)
+                db.session.add(log)
+                db.session.commit()
+
+                # Add a random delay
+                time.sleep(random.randint(5, 15))
+
+    except Exception as e:
+        new_campaign.status = 'Failed'
         db.session.commit()
-        flash('Campaign updated successfully!', 'success')
+        flash(f"A critical error occurred during sending: {e}", "error")
         return redirect(url_for('campaigns'))
 
-    return render_template('edit_campaign.html', campaign=campaign)
+    new_campaign.status = 'Sent'
+    db.session.commit()
+    flash(f'Campaign "{new_campaign.name}" finished. Sent: {total_sent}, Failed: {total_failed}, Skipped: {total_skipped}.', 'success')
+    return redirect(url_for('campaigns'))
+
+
+@app.route('/campaign/launch_custom', methods=['POST'])
+@login_required
+def launch_custom_campaign():
+    name = request.form['name']
+    message = request.form['message']
+    subscriber_ids_str = request.form['subscriber_ids']
+
+    if not all([name, message, subscriber_ids_str]):
+        flash('Campaign name, message, and subscribers are required.', 'error')
+        # This redirect is not ideal, but it's a fallback.
+        return redirect(url_for('subscribers'))
+
+    subscriber_ids = [int(id) for id in subscriber_ids_str.split(',')]
+    subscribers_to_send = Subscriber.query.filter(Subscriber.id.in_(subscriber_ids)).all()
+
+    if not subscribers_to_send:
+        flash('No valid subscribers to send to.', 'error')
+        return redirect(url_for('subscribers'))
+
+    # Create and save the new campaign
+    new_campaign = Campaign(name=name, message=message, status='Sending')
+    db.session.add(new_campaign)
+    db.session.commit()
+    flash(f'Campaign "{new_campaign.name}" is now sending... Please do not close this window.', 'success')
+
+    # Fetch stop words once
+    stop_words_db = StopWord.query.all()
+    stop_words_list = {sw.word.lower() for sw in stop_words_db}
+
+    total_sent = 0
+    total_failed = 0
+    total_skipped = 0
+
+    try:
+        with WhatsAppSender(headless=False) as sender:
+            for sub in subscribers_to_send:
+                log_status = ""
+                # --- Stop Word Check ---
+                if sub.status != 'Active':
+                    log_status = "Skipped (Inactive)"
+                    total_skipped += 1
+                else:
+                    last_message = sender.read_last_message(sub.whatsapp_number)
+                    if last_message and last_message.lower() in stop_words_list:
+                        print(f"Skipping {sub.name} because a stop word was found.")
+                        log_status = "Skipped (Stop Word)"
+                        total_skipped += 1
+                    else:
+                        # --- Send Message ---
+                        personalized_message = new_campaign.message.replace('{الاسم}', sub.name)
+                        status = sender.send_message(sub.whatsapp_number, personalized_message)
+
+                        if "Success" in status:
+                            log_status = 'Success'
+                            total_sent += 1
+                        else:
+                            log_status = f'Fail: {status}'
+                            total_failed += 1
+
+                # --- Create Log ---
+                log = CampaignLog(campaign_id=new_campaign.id, subscriber_id=sub.id, status=log_status)
+                db.session.add(log)
+                db.session.commit()
+
+                # Add a random delay
+                time.sleep(random.randint(5, 15))
+
+    except Exception as e:
+        new_campaign.status = 'Failed'
+        db.session.commit()
+        flash(f"A critical error occurred during sending: {e}", "error")
+        return redirect(url_for('campaigns'))
+
+    new_campaign.status = 'Sent'
+    db.session.commit()
+    flash(f'Campaign "{new_campaign.name}" finished. Sent: {total_sent}, Failed: {total_failed}, Skipped: {total_skipped}.', 'success')
+    return redirect(url_for('campaigns'))
 
 @app.route('/campaign/delete/<int:campaign_id>', methods=['POST'])
 @login_required
@@ -146,6 +329,14 @@ def import_subscribers():
                             state=row.get('state') # Use .get() for optional columns
                         )
                         db.session.add(subscriber)
+
+                        # --- Tag Handling for Import ---
+                        if 'tags' in df.columns:
+                            tags_string = str(row['tags']) if pd.notna(row['tags']) else ''
+                            # We need to add the subscriber to the session to get an ID before processing tags
+                            db.session.flush()
+                            _process_and_set_tags(subscriber, tags_string)
+
                         new_subscribers += 1
 
                 db.session.commit()
@@ -158,72 +349,6 @@ def import_subscribers():
                 return redirect(request.url)
 
     return render_template('import.html')
-
-@app.route('/campaign/<int:campaign_id>/launch', methods=['POST'])
-@login_required
-def launch_campaign(campaign_id):
-    campaign = Campaign.query.get_or_404(campaign_id)
-    if campaign.status != 'Draft':
-        flash('This campaign has already been sent or is currently sending.', 'error')
-        return redirect(url_for('campaigns'))
-
-    subscribers_to_send = Subscriber.query.filter_by(status='Active').all()
-    if not subscribers_to_send:
-        flash('No active subscribers to send to.', 'error')
-        return redirect(url_for('campaigns'))
-
-    # Fetch stop words once
-    stop_words_db = StopWord.query.all()
-    stop_words_list = {sw.word.lower() for sw in stop_words_db}
-
-    campaign.status = 'Sending'
-    db.session.commit()
-    flash(f'Campaign "{campaign.name}" is now sending... Please do not close this window.', 'success')
-
-    total_sent = 0
-    total_failed = 0
-    total_skipped = 0
-
-    try:
-        with WhatsAppSender(headless=False) as sender:
-            for sub in subscribers_to_send:
-                log_status = ""
-                # --- Stop Word Check ---
-                last_message = sender.read_last_message(sub.whatsapp_number)
-                if last_message and last_message.lower() in stop_words_list:
-                    print(f"Skipping {sub.name} because a stop word was found.")
-                    log_status = "Skipped (Stop Word)"
-                    total_skipped += 1
-                else:
-                    # --- Send Message ---
-                    personalized_message = campaign.message.replace('{الاسم}', sub.name)
-                    status = sender.send_message(sub.whatsapp_number, personalized_message)
-
-                    if "Success" in status:
-                        log_status = 'Success'
-                        total_sent += 1
-                    else:
-                        log_status = f'Fail: {status}'
-                        total_failed += 1
-
-                # --- Create Log ---
-                log = CampaignLog(campaign_id=campaign.id, subscriber_id=sub.id, status=log_status)
-                db.session.add(log)
-                db.session.commit()
-
-                # Add a random delay
-                time.sleep(random.randint(5, 15))
-
-    except Exception as e:
-        campaign.status = 'Failed'
-        db.session.commit()
-        flash(f"A critical error occurred during sending: {e}", "error")
-        return redirect(url_for('campaigns'))
-
-    campaign.status = 'Sent'
-    db.session.commit()
-    flash(f'Campaign "{campaign.name}" finished. Sent: {total_sent}, Failed: {total_failed}, Skipped: {total_skipped}.', 'success')
-    return redirect(url_for('campaigns'))
 
 @app.route('/stopwords', methods=['GET', 'POST'])
 @login_required
