@@ -1,6 +1,6 @@
 import time
 import random
-from playwright.sync_api import sync_playwright, Page, Browser, Playwright, TimeoutError
+from playwright.sync_api import sync_playwright, Page, BrowserContext, Playwright, TimeoutError
 
 USER_DATA_DIR = "playwright_user_data"
 
@@ -9,7 +9,7 @@ class WhatsAppSender:
     Manages a persistent browser session to interact with WhatsApp Web.
     """
     p: Playwright = None
-    browser: Browser = None
+    context: BrowserContext = None
     page: Page = None
 
     def __init__(self, headless=False):
@@ -18,15 +18,18 @@ class WhatsAppSender:
     def __enter__(self):
         """Starts playwright and launches the browser."""
         self.p = sync_playwright().start()
-        self.browser = self.p.chromium.launch(headless=self.headless, user_data_dir=USER_DATA_DIR)
-        self.page = self.browser.new_page()
+        self.context = self.p.chromium.launch_persistent_context(
+            USER_DATA_DIR,
+            headless=self.headless
+        )
+        self.page = self.context.new_page()
         self._login()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Closes the browser and stops playwright."""
-        if self.browser:
-            self.browser.close()
+        if self.context:
+            self.context.close()
         if self.p:
             self.p.stop()
 
