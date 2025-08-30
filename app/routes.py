@@ -1,23 +1,41 @@
 import os
 import pandas as pd
 from flask import render_template, request, redirect, url_for, flash
+from flask_login import current_user, login_user, logout_user, login_required
 import time
 import random
 from app import app, db
-from app.models import Subscriber, Campaign, CampaignLog, StopWord
+from app.models import Subscriber, Campaign, CampaignLog, StopWord, User
+from app.forms import LoginForm
 from sender import WhatsAppSender
+
+from sqlalchemy import func
 
 @app.route('/')
 @app.route('/index')
-def index():
-    return redirect(url_for('campaigns'))
+@login_required
+def dashboard():
+    total_subscribers = Subscriber.query.count()
+    total_campaigns = Campaign.query.count()
+
+    successful_logs = CampaignLog.query.filter(CampaignLog.status == 'Success').count()
+    total_logs = CampaignLog.query.count()
+    success_rate = (successful_logs / total_logs * 100) if total_logs > 0 else 0
+
+    return render_template('dashboard.html',
+                           total_subscribers=total_subscribers,
+                           total_campaigns=total_campaigns,
+                           successful_logs=successful_logs,
+                           success_rate=f'{success_rate:.2f}')
 
 @app.route('/subscribers')
+@login_required
 def subscribers():
     all_subscribers = Subscriber.query.all()
     return render_template('subscribers.html', subscribers=all_subscribers)
 
 @app.route('/subscriber/edit/<int:subscriber_id>', methods=['GET', 'POST'])
+@login_required
 def edit_subscriber(subscriber_id):
     subscriber = Subscriber.query.get_or_404(subscriber_id)
     if request.method == 'POST':
@@ -31,6 +49,7 @@ def edit_subscriber(subscriber_id):
     return render_template('edit_subscriber.html', subscriber=subscriber)
 
 @app.route('/subscriber/delete/<int:subscriber_id>', methods=['POST'])
+@login_required
 def delete_subscriber(subscriber_id):
     subscriber_to_delete = Subscriber.query.get_or_404(subscriber_id)
     db.session.delete(subscriber_to_delete)
@@ -39,6 +58,7 @@ def delete_subscriber(subscriber_id):
     return redirect(url_for('subscribers'))
 
 @app.route('/campaigns', methods=['GET', 'POST'])
+@login_required
 def campaigns():
     if request.method == 'POST':
         name = request.form['name']
@@ -56,6 +76,7 @@ def campaigns():
     return render_template('campaigns.html', campaigns=all_campaigns)
 
 @app.route('/campaign/edit/<int:campaign_id>', methods=['GET', 'POST'])
+@login_required
 def edit_campaign(campaign_id):
     campaign = Campaign.query.get_or_404(campaign_id)
     if campaign.status != 'Draft':
@@ -72,6 +93,7 @@ def edit_campaign(campaign_id):
     return render_template('edit_campaign.html', campaign=campaign)
 
 @app.route('/campaign/delete/<int:campaign_id>', methods=['POST'])
+@login_required
 def delete_campaign(campaign_id):
     campaign_to_delete = Campaign.query.get_or_404(campaign_id)
     db.session.delete(campaign_to_delete)
@@ -79,7 +101,14 @@ def delete_campaign(campaign_id):
     flash('Campaign and all its logs have been deleted successfully!', 'success')
     return redirect(url_for('campaigns'))
 
+@app.route('/campaign/<int:campaign_id>/details')
+@login_required
+def campaign_details(campaign_id):
+    campaign = Campaign.query.get_or_404(campaign_id)
+    return render_template('campaign_details.html', campaign=campaign)
+
 @app.route('/import', methods=['GET', 'POST'])
+@login_required
 def import_subscribers():
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -131,6 +160,7 @@ def import_subscribers():
     return render_template('import.html')
 
 @app.route('/campaign/<int:campaign_id>/launch', methods=['POST'])
+@login_required
 def launch_campaign(campaign_id):
     campaign = Campaign.query.get_or_404(campaign_id)
     if campaign.status != 'Draft':
@@ -196,6 +226,7 @@ def launch_campaign(campaign_id):
     return redirect(url_for('campaigns'))
 
 @app.route('/stopwords', methods=['GET', 'POST'])
+@login_required
 def stopwords():
     if request.method == 'POST':
         word = request.form.get('word', '').strip()
@@ -217,9 +248,29 @@ def stopwords():
     return render_template('stopwords.html', stop_words=all_stop_words)
 
 @app.route('/stopwords/delete/<int:word_id>', methods=['POST'])
+@login_required
 def delete_stop_word(word_id):
     word_to_delete = StopWord.query.get_or_404(word_id)
     db.session.delete(word_to_delete)
     db.session.commit()
     flash(f'Stop word "{word_to_delete.word}" deleted.', 'success')
     return redirect(url_for('stopwords'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user is None or not user.check_password(form.password.data):
+            flash('Invalid username or password')
+            return redirect(url_for('login'))
+        login_user(user, remember=form.remember_me.data)
+        return redirect(url_for('dashboard'))
+    return render_template('login.html', title='Sign In', form=form)
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('dashboard'))

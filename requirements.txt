@@ -3,3 +3,5 @@ Flask-SQLAlchemy
 pandas
 openpyxl
 playwright
+Flask-Login
+Flask-WTF

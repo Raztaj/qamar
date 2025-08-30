@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+    <h1 class="h2">Dashboard</h1>
+    <p>Welcome to your WhatsApp Campaign Sender!</p>
+
+    <div class="row">
+        <div class="col-md-6 col-lg-3">
+            <div class="card bg-primary text-white mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ total_subscribers }}</h5>
+                    <p class="card-text">Total Subscribers</p>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small text-white stretched-link" href="{{ url_for('subscribers') }}">View Details</a>
+                    <div class="small text-white"><i class="fas fa-angle-right"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card bg-success text-white mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ total_campaigns }}</h5>
+                    <p class="card-text">Total Campaigns</p>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small text-white stretched-link" href="{{ url_for('campaigns') }}">View Details</a>
+                    <div class="small text-white"><i class="fas fa-angle-right"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card bg-info text-white mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ successful_logs }}</h5>
+                    <p class="card-text">Successful Messages</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card bg-warning text-dark mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ success_rate }}%</h5>
+                    <p class="card-text">Success Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
