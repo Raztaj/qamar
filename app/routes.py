@@ -71,6 +71,14 @@ def edit_campaign(campaign_id):
 
     return render_template('edit_campaign.html', campaign=campaign)
 
+@app.route('/campaign/delete/<int:campaign_id>', methods=['POST'])
+def delete_campaign(campaign_id):
+    campaign_to_delete = Campaign.query.get_or_404(campaign_id)
+    db.session.delete(campaign_to_delete)
+    db.session.commit()
+    flash('Campaign and all its logs have been deleted successfully!', 'success')
+    return redirect(url_for('campaigns'))
+
 @app.route('/import', methods=['GET', 'POST'])
 def import_subscribers():
     if request.method == 'POST':

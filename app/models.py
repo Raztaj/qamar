@@ -18,7 +18,7 @@ class Campaign(db.Model):
     message = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='Draft') # e.g., Draft, Sending, Sent
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    logs = db.relationship('CampaignLog', backref='campaign', lazy=True)
+    logs = db.relationship('CampaignLog', backref='campaign', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"Campaign('{self.name}', '{self.status}')"
