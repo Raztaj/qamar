@@ -30,6 +30,14 @@ def edit_subscriber(subscriber_id):
         return redirect(url_for('subscribers'))
     return render_template('edit_subscriber.html', subscriber=subscriber)
 
+@app.route('/subscriber/delete/<int:subscriber_id>', methods=['POST'])
+def delete_subscriber(subscriber_id):
+    subscriber_to_delete = Subscriber.query.get_or_404(subscriber_id)
+    db.session.delete(subscriber_to_delete)
+    db.session.commit()
+    flash('Subscriber deleted successfully!', 'success')
+    return redirect(url_for('subscribers'))
+
 @app.route('/campaigns', methods=['GET', 'POST'])
 def campaigns():
     if request.method == 'POST':
